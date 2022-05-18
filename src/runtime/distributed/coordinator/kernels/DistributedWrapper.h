@@ -23,7 +23,8 @@
 #include <runtime/distributed/coordinator/kernels/Distribute.h>
 #include <runtime/distributed/coordinator/kernels/DistributedCollect.h>
 #include <runtime/distributed/coordinator/kernels/DistributedCompute.h>
-
+#include "runtime/distributed/worker/MPIWorker.h"
+#include <mpi.h>
 using mlir::daphne::VectorSplit;
 using mlir::daphne::VectorCombine;
 
@@ -52,19 +53,25 @@ public:
                  int64_t *outCols,
                  VectorSplit *splits,
                  VectorCombine *combines)                 
-    {        
-        auto envVar = std::getenv("DISTRIBUTED_WORKERS");
-        // assert(envVar && "Environment variable has to be set");
-        std::string workersStr(envVar);        
-        std::string delimiter(",");
+    {
+        std::cout<<"running distributed\n"; 
+        ///////MPI
+        int world;
+        MPI_Comm_size(MPI_COMM_WORLD, &world);
+        //MPI       
 
-        size_t pos;
-        std::vector<std::string> workers;
-        while ((pos = workersStr.find(delimiter)) != std::string::npos) {
-            workers.push_back(workersStr.substr(0, pos));
-            workersStr.erase(0, pos + delimiter.size());
-        }
-        workers.push_back(workersStr);
+        //auto envVar = std::getenv("DISTRIBUTED_WORKERS");
+        // assert(envVar && "Environment variable has to be set");
+       // std::string workersStr(envVar);        
+        //std::string delimiter(",");
+
+        //size_t pos;
+        //std::vector<std::string> workers;
+        //while ((pos = workersStr.find(delimiter)) != std::string::npos) {
+         //   workers.push_back(workersStr.substr(0, pos));
+         //   workersStr.erase(0, pos + delimiter.size());
+        //}
+       // workers.push_back(workersStr);
 
 
         // output allocation for row-wise combine
@@ -79,7 +86,7 @@ public:
         
         // Distribute and broadcast inputs        
         // Each primitive sends information to workers and changes the Structures' metadata information (DataPlacement)        
-        for (auto i = 0u; i < numInputs; ++i) {
+        /*for (auto i = 0u; i < numInputs; ++i) {
             // if already placed on workers, skip
             // TODO maybe this is not enough. We might also need to check if data resides in the specific way we need to.
             // (i.e. rows/cols splitted accordingly). If it does then we can skip.
@@ -92,15 +99,29 @@ public:
             else {
                 distribute(inputs[i], _ctx);
             }
-        }
-          
-        distributedCompute(res, numOutputs, inputs, numInputs, mlirCode, combines, _ctx);
-
+        }*/
+        int codeLen= strlen(mlirCode);
+        int infoMessageLen=4;
+        unsigned char * infoMessage = (unsigned char *) malloc(infoMessageLen * sizeof(unsigned char));
+        infoMessage[0] = (codeLen >> 24) & 0xFF;
+        infoMessage[1] = (codeLen >> 16) & 0xFF;
+        infoMessage[2] = (codeLen >> 8) & 0xFF;
+        infoMessage[3] = codeLen & 0xFF;
+        MPI_Request requests[world-1];
+        MPI_Status statuses [world-1];
+        for (int i =1; i< world; i++)
+            MPI_Isend(infoMessage,infoMessageLen, MPI_UNSIGNED_CHAR, i, MLIR, MPI_COMM_WORLD, &requests[i-1] );
+        void * code = (void *) mlirCode;
+        MPI_Bcast(code, codeLen, MPI_CHAR, COORDINATOR, MPI_COMM_WORLD);
+        free (infoMessage);
+        MPI_Waitall(world-1, requests,statuses);
+        //distributedCompute(res, numOutputs, inputs, numInputs, mlirCode, combines, _ctx);
+        
         // Collect
-        for (size_t o = 0; o < numOutputs; o++){
-            assert ((combines[o] == VectorCombine::ROWS || combines[o] == VectorCombine::COLS) && "we only support rows/cols combine atm");
-            distributedCollect(*res[o], _ctx);           
-        }
+        //for (size_t o = 0; o < numOutputs; o++){
+        //    assert ((combines[o] == VectorCombine::ROWS || combines[o] == VectorCombine::COLS) && "we only support rows/cols combine atm");
+        //    distributedCollect(*res[o], _ctx);           
+       // }
         
         
     }

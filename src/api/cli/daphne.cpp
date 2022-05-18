@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <mpi.h>
 #include <api/cli/StatusCode.h>
 #include <api/cli/DaphneUserConfig.h>
 #include <parser/daphnedsl/DaphneDSLParser.h>
@@ -39,6 +40,8 @@
 #include <cstring>
 #include <vector>
 
+#include "runtime/distributed/worker/MPIWorker.h"
+
 using namespace std;
 using namespace mlir;
 using namespace llvm::cl;
@@ -61,9 +64,7 @@ void parseScriptArgs(const llvm::cl::list<string>& scriptArgsCli, unordered_map<
     }
 }
 
-int
-main(int argc, char** argv)
-{
+int  startCoordinator(int argc, char ** argv) {
     // ************************************************************************
     // Parse command line arguments
     // ************************************************************************
@@ -280,6 +281,38 @@ main(int argc, char** argv)
         std::cerr << "Execution error: " << e.what() << std::endl;
         return StatusCode::EXECUTION_ERROR;
     }
+  return StatusCode::SUCCESS;
+}
 
+int startDistributedWorkers(int argc, char ** argv){
+    MPIWorker worker;
+    worker.joinComputingTeam();
     return StatusCode::SUCCESS;
+}
+
+int main(int argc, char** argv)
+{
+    int id, size;
+    MPI_Init(NULL,NULL);
+    MPI_Comm_rank(MPI_COMM_WORLD, &id);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    char processor_name[MPI_MAX_PROCESSOR_NAME];
+    int name_len;
+    MPI_Get_processor_name(processor_name, &name_len);
+    printf("I am %d out of %d reside on %s\n", id, size, processor_name);
+    int res;
+    if(id==COORDINATOR){
+        res=startCoordinator(argc, argv);
+        printf("==========Done=======\n");
+        unsigned char *terminateMessage;
+        for(int i=1;i<size;i++){
+            MPI_Send(terminateMessage,1, MPI_UNSIGNED_CHAR, i,  DETACH, MPI_COMM_WORLD);
+            printf("coordinator detached worker %d\n", i); 
+       } 
+    }
+    else
+        res=startDistributedWorkers(argc, argv);
+
+    MPI_Finalize();
+    return res;
 }

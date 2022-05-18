@@ -194,6 +194,27 @@ then
 fi
 cd $pwdBeforeOpenBlas
 
+######################
+# mpi
+pwdBeforeMPI=$(pwd)
+MPIDirName=OpenMPI
+MPIVersion=4.1.3
+MPIZipName=openmpi-$MPIVersion.tar.gz
+MPIInstDirName=installed
+mkdir --parents $MPIDirName
+cd $MPIDirName
+if [ ! -f $MPIZipName ]
+then
+    wget https://download.open-mpi.org/release/open-mpi/v4.1/$MPIZipName
+    tar -xf $MPIZipName
+    mkdir --parents $MPIInstDirName
+    cd openmpi-$MPIVersion
+    ./configure --with-slurm --prefix=$pwdBeforeMPI/$MPIDirName/$MPIInstDirName/
+    make all install
+fi
+cd $pwdBeforeMPI
+ 
+####################
 # gRPC
 grpcDirName=grpc
 grpcInstDir=$(pwd)/$grpcDirName/installed
@@ -287,6 +308,8 @@ cmake -G Ninja .. \
     -DANTLR4_RUNTIME_DIR=$thirdpartyPath/$antlrDirName/$antlrCppRuntimeDirName \
     -DANTLR4_JAR_LOCATION=$thirdpartyPath/$antlrDirName/$antlrJarName \
     -DOPENBLAS_INST_DIR=$thirdpartyPath/$openBlasDirName/$openBlasInstDirName \
+    -DOPENMPI_INST_DIR=$thirdpartyPath/$MPIDirName/$MPIInstDirName \
+    -DCMAKE_C_COMPILER=mpicc -DCMAKE_CXX_COMPILER=mpic++ \
     -DCMAKE_PREFIX_PATH="$grpcInstDir"
 # optional cmake flags (to be added to the command above):
 # -DUSE_CUDA=ON

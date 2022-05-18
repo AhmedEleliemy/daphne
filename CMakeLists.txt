@@ -82,6 +82,9 @@ find_package(Threads REQUIRED)
 include_directories(${OPENBLAS_INST_DIR}/include)
 SET(OPENBLAS_LIBRARIES ${OPENBLAS_INST_DIR}/lib/libopenblas.a ${CMAKE_THREAD_LIBS_INIT})
 
+include_directories(${OPENMPI_INST_DIR}/include)
+SET(OPENMPI_LIBRARIES ${OPENMPI_INST_DIR}/lib/)
+
 # check <package>_ROOT env var
 cmake_policy(SET CMP0074 NEW)
 
